@@ -267,50 +267,53 @@ def analyze_image_with_claude(image_base64, prompt, mime_type="image/jpeg"):
     except Exception as e:
         return f"Error analyzing image with Claude: {str(e)}"
 
-class SQLBot(ChromaDB_VectorStore, OpenAI_Chat):
-    def __init__(self, config=None):
-        ChromaDB_VectorStore.__init__(self, config=config)
-        OpenAI_Chat.__init__(self, config=config)
+# Initialize SQL and CSV bots only if not using Bedrock exclusively
+if not use_bedrock_only:
+    class SQLBot(ChromaDB_VectorStore, OpenAI_Chat):
+        def __init__(self, config=None):
+            ChromaDB_VectorStore.__init__(self, config=config)
+            OpenAI_Chat.__init__(self, config=config)
 
+    class CSVBot(ChromaDB_VectorStore, OpenAI_Chat):
+        def __init__(self, config=None):
+            ChromaDB_VectorStore.__init__(self, config=config)
+            OpenAI_Chat.__init__(self, config=config)
 
-class CSVBot(ChromaDB_VectorStore, OpenAI_Chat):
-    def __init__(self, config=None):
-        ChromaDB_VectorStore.__init__(self, config=config)
-        OpenAI_Chat.__init__(self, config=config)
+    sqlBot = SQLBot(
+        config={
+            "api_key": openai_api_key_str,
+            "model": "gpt-4o",
+            "temperature": 0,
+            "path": "./SQLVectorStore",
+            "client": "persistent",
+            "n_results": 1,
+        }
+    )
 
+    csvBot = CSVBot(
+        config={
+            "api_key": openai_api_key_str,
+            "model": "gpt-4o",
+            "temperature": 0,
+            "path": "./CSVVectorStore",
+            "client": "persistent",
+            "n_results": 1,
+        }
+    )
 
-sqlBot = SQLBot(
-    config={
-        "api_key": openai_api_key_str,
-        "model": "gpt-4o",
-        "temperature": 0,
-        "path": "./SQLVectorStore",
-        "client": "persistent",
-        "n_results": 1,
-    }
-)
+    sqlBot.connect_to_sqlite("sqlite_data.db")
+    csvBot.connect_to_sqlite("csv_data.db")
 
-csvBot = CSVBot(
-    config={
-        "api_key": openai_api_key_str,
-        "model": "gpt-4o",
-        "temperature": 0,
-        "path": "./CSVVectorStore",
-        "client": "persistent",
-        "n_results": 1,
-    }
-)
+    df_ddl = sqlBot.run_sql("SELECT type, sql FROM sqlite_master WHERE sql IS NOT NULL")
+    # print(df_ddl)
 
-sqlBot.connect_to_sqlite("sqlite_data.db")
-
-csvBot.connect_to_sqlite("csv_data.db")
-
-
-df_ddl = sqlBot.run_sql("SELECT type, sql FROM sqlite_master WHERE sql IS NOT NULL")
-# print(df_ddl)
-
-for ddl in df_ddl['sql'].to_list():
-    sqlBot.train(ddl=ddl)
+    for ddl in df_ddl['sql'].to_list():
+        sqlBot.train(ddl=ddl)
+else:
+    # Create placeholder objects for Bedrock-only mode
+    sqlBot = None
+    csvBot = None
+    print("SQL and CSV bots disabled in Bedrock-only mode")
 
 # training_data = sqlBot.get_training_data()
 # print(training_data)
@@ -350,23 +353,40 @@ s3_client = boto3.client(
 )
 
 
-embedding_function = OpenAIEmbeddings(
-    model="text-embedding-ada-002", api_key=openai_api_key_str
-)
+# Initialize embeddings and vector store only if not using Bedrock exclusively
+if not use_bedrock_only:
+    embedding_function = OpenAIEmbeddings(
+        model="text-embedding-ada-002", api_key=openai_api_key_str
+    )
 
-persistent_client = chromadb.PersistentClient()
+    persistent_client = chromadb.PersistentClient()
 
-vector_store_from_client = Chroma(
-    client=persistent_client,
-    collection_name="pdfs",
-    embedding_function=embedding_function,
-)
+    vector_store_from_client = Chroma(
+        client=persistent_client,
+        collection_name="pdfs",
+        embedding_function=embedding_function,
+    )
 
-PDFCollection = persistent_client.get_collection("pdfs")
+    PDFCollection = persistent_client.get_collection("pdfs")
 
-text_splitter = SemanticChunker(
-    OpenAIEmbeddings(model="text-embedding-ada-002", api_key=openai_api_key_str)
-)
+    text_splitter = SemanticChunker(
+        OpenAIEmbeddings(model="text-embedding-ada-002", api_key=openai_api_key_str)
+    )
+else:
+    # For Bedrock-only mode, we'll use a simple text splitter
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    
+    embedding_function = None
+    persistent_client = None
+    vector_store_from_client = None
+    PDFCollection = None
+    
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200,
+        length_function=len,
+    )
+    print("Using simple text splitter in Bedrock-only mode")
 
 # Initialize LLM based on configuration
 if use_bedrock_only:
@@ -659,9 +679,12 @@ def camelot_pdf_processing(flow_id, file, flow_type):
                     EmbeddingsDocuments.append(
                         LangDocument(page_content=chunks[i].page_content, metadata=metadata)
                     )
-                uuids = [str(uuid4()) for _ in range(len(EmbeddingsDocuments))]
-
-                vector_store_from_client.add_documents(documents=EmbeddingsDocuments, ids=uuids)
+                if not use_bedrock_only and vector_store_from_client is not None:
+                    uuids = [str(uuid4()) for _ in range(len(EmbeddingsDocuments))]
+                    vector_store_from_client.add_documents(documents=EmbeddingsDocuments, ids=uuids)
+                else:
+                    print("Vector store not available in Bedrock-only mode")
+                
                 return {"component_id": str(component_id), "type": "pdf"}
             
             else:
@@ -932,9 +955,12 @@ def use_aws_textract(file, flow_id, flow_type):
             EmbeddingsDocuments.append(
                 LangDocument(page_content=chunks[i].page_content, metadata=metadata)
             )
-        uuids = [str(uuid4()) for _ in range(len(EmbeddingsDocuments))]
-
-        vector_store_from_client.add_documents(documents=EmbeddingsDocuments, ids=uuids)
+        if not use_bedrock_only and vector_store_from_client is not None:
+            uuids = [str(uuid4()) for _ in range(len(EmbeddingsDocuments))]
+            vector_store_from_client.add_documents(documents=EmbeddingsDocuments, ids=uuids)
+        else:
+            print("Vector store not available in Bedrock-only mode")
+        
         return {"component_id": str(component_id), "type": "pdf"}
     
     else:
@@ -1054,8 +1080,15 @@ def use_aws_textract(file, flow_id, flow_type):
 
 
 def do_semantic_chunking(docs):
-    documents = text_splitter.create_documents([docs])
-    print("Number of chunks created: ", len(documents))
+    if use_bedrock_only:
+        # Use simple text splitting for Bedrock-only mode
+        documents = text_splitter.create_documents([docs])
+        print(f"Number of chunks created (simple splitting): {len(documents)}")
+    else:
+        # Use semantic chunking for OpenAI mode
+        documents = text_splitter.create_documents([docs])
+        print(f"Number of chunks created (semantic): {len(documents)}")
+    
     for i in range(len(documents)):
         print()
         print(f"CHUNK : {i+1}")
@@ -1064,6 +1097,12 @@ def do_semantic_chunking(docs):
 
 
 def get_relevant_passage(query: str, flow_id: str, component_id: str, n_results: int):
+    if use_bedrock_only or vector_store_from_client is None:
+        # In Bedrock-only mode, we don't have vector search
+        # Return empty results or implement alternative search
+        print("Vector search not available in Bedrock-only mode")
+        return []
+    
     results = vector_store_from_client.similarity_search(
         query=query,
         k=2,

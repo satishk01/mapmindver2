@@ -1,0 +1,11 @@
+# Minimal requirements for testing import only
+fastapi==0.115.6
+uvicorn==0.34.0
+pymongo==4.10.1
+boto3==1.35.90
+botocore==1.35.90
+python-dotenv==1.0.1
+pandas==2.2.3
+langchain==0.3.13
+langchain-core==0.3.28
+chromadb==0.5.23
