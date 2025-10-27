@@ -6,6 +6,7 @@ import useStore from '../stores/store';
 import LoadingModal from '../modals/LoadingModal';
 import setRequestData from '../config/setRequestData';
 import axios from 'axios';
+import { createApiUrl } from '../config/api.js';
 import { useState } from 'react';
 import flowStore from '../stores/flowStore';
 import errorStore from '../stores/errorStore';
@@ -33,7 +34,7 @@ const DataSourceSet = ({ data }) => {
         };
         const [url, body, headerConfig] = setRequestData('pdf', flowId, data);
         axios
-            .post(`http://localhost:8000/${url}`, body, {
+            .post(createApiUrl(url), body, {
                 headers: {
                     'Content-Type': headerConfig
                 }

@@ -11,6 +11,7 @@ import generateHexId from "../utils/setUpHex";
 import LoadingModal from "./LoadingModal";
 import setRequestData from "../config/setRequestData";
 import axios from "axios";
+import { createApiUrl } from '../config/api.js';
 import DataSourceSelect from "../global-components/DataSourceSelect";
 import errorStore from "../stores/errorStore";
 import ErrorModal from "./ErrorModal";
@@ -54,7 +55,7 @@ const YTModal = () => {
 		pushNode(LoadingModal);
 		const [url_hit, body, headerConfig] = setRequestData("youtube", flowId, data);
 		console.log("Testtttttt", url_hit, body, headerConfig)
-		axios.post(`http://localhost:8000/${url_hit}`, body, {
+		axios.post(createApiUrl(url_hit), body, {
 			headers: {
 				'Content-Type': headerConfig
 			}

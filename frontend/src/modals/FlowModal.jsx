@@ -8,6 +8,7 @@ import useStore from '../stores/store';
 import { useShallow } from 'zustand/shallow';
 import modalStore from '../stores/modalStore';
 import axios from 'axios';
+import { createApiUrl } from '../config/api.js';
 import LoadingModal from './LoadingModal';
 import setRequestData from '../config/setRequestData';
 import flowStore from '../stores/flowStore';
@@ -15,6 +16,7 @@ import DataSourceSet from '../nodes/DataSourceSet';
 import DataSourceSelect from '../global-components/DataSourceSelect';
 import ErrorModal from './ErrorModal';
 import errorStore from '../stores/errorStore';
+import { API_BASE_URL } from '../config/api';
 
 const FlowModal = ({isDrawer, setIsDrawer, isViewModal, setIsViewFlowModal}) => {
    const selector = (state) => ({
@@ -56,7 +58,7 @@ const FlowModal = ({isDrawer, setIsDrawer, isViewModal, setIsViewFlowModal}) => 
             flow_type: 'manual'
         };
         axios
-            .post(`http://localhost:8000/create-flow`, data, {
+            .post(createApiUrl("create-flow"), data, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -75,7 +77,7 @@ const FlowModal = ({isDrawer, setIsDrawer, isViewModal, setIsViewFlowModal}) => 
             flow_type: 'automatic'
         };
         axios
-            .post(`http://localhost:8000/create-flow`, data, {
+            .post(createApiUrl("create-flow"), data, {
                 headers: {
                     'Content-Type': 'application/json'
                 }

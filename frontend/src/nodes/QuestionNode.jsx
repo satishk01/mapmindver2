@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import useStore from '../stores/store';
 import { useShallow } from 'zustand/shallow';
 import axios from 'axios';
+import { createApiUrl } from '../config/api.js';
 import STARSvg from '../assets/star.svg';
 import modalStore from '../stores/modalStore';
 import LoadingModal from '../modals/LoadingModal';
@@ -131,7 +132,7 @@ const QuestionNode = ({ id, position, data  }) => {
             'question'
         );
         axios
-            .post(`http://localhost:8000/${url}`, body, config)
+            .post(createApiUrl(url), body, config)
             .then((res) => setResponse(res.data))
             .catch((err) => manageErrors(err));
         // 	const formData = new FormData();
@@ -142,7 +143,7 @@ const QuestionNode = ({ id, position, data  }) => {
         // 	}
         // 	console.log(dataString)
 
-        // 	axios.post("http://localhost:8000/sql-component-qa", dataString, {
+        // 	axios.post(createApiUrl("sql-component-qa"), dataString, {
         // 		headers: {
         // 			// 'Content-Type': 'multipart/form-data'
         // 			'Content-Type': 'application/json'

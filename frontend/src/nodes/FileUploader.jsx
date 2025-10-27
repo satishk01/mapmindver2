@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/shallow';
 import Prompts from '../global-components/Prompts';
 import { useState } from 'react';
 import axios from "axios";
+import { createApiUrl } from "../config/api.js";
 import useCreatNode from '../hooks/useCreateNodes';
 import useCreateEdges from '../hooks/useCreateEdges';
 import { nanoid } from 'nanoid';
@@ -55,7 +56,7 @@ const FileUploader = ({ id, data, position }) => {
         formData.append("flow_id", "6773dca11fedc7239c286b2b")
         formData.append("file", file)
         console.log(file, "err")
-        axios.post("http://localhost:8000/component-create-pdf", formData, {
+        axios.post(createApiUrl("component-create-pdf"), formData, {
             headers: {
                 'Content-Type': 'multipart/form-data'
             }

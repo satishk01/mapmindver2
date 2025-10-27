@@ -8,6 +8,7 @@ import useStore from '../stores/store';
 import { useShallow } from 'zustand/shallow';
 import modalStore from '../stores/modalStore';
 import axios from 'axios';
+import { createApiUrl } from '../config/api.js';
 import LoadingModal from './LoadingModal';
 import setRequestData from '../config/setRequestData';
 import flowStore from '../stores/flowStore';
@@ -56,7 +57,7 @@ const DocxModal = () => {
         pushNode(LoadingModal);
         const [url, body, headerConfig] = setRequestData('docx', flowId, data);
         axios
-            .post(`http://localhost:8000/${url}`, body, {
+            .post(createApiUrl(url), body, {
                 headers: {
                     'Content-Type': headerConfig
                 }

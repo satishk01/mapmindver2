@@ -3,6 +3,7 @@ import ADDSvg from '../assets/add2.svg';
 import Flow from './Flow.jsx';
 import flowStore from '../stores/flowStore.js';
 import axios from 'axios';
+import { createApiUrl } from '../config/api.js';
 import { useState, useEffect } from 'react';
 import useStore from '../stores/store.js';
 import getGenerateHexId from '../utils/setUpHex.js';
@@ -48,7 +49,7 @@ const Drawer = ({ isDrawer, setIsDrawer, flowList, setFlowList }) => {
             flow_json: ''
         };
         axios
-            .post(`http://localhost:8000/create-flow`, data, {
+            .post(createApiUrl("create-flow"), data, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -93,7 +94,7 @@ const Drawer = ({ isDrawer, setIsDrawer, flowList, setFlowList }) => {
 
     const getFlowList = () => {
         axios
-            .get(`http://localhost:8000/flows`)
+            .get(createApiUrl("flows"))
             .then((res) => setFlowList(res.data))
             .catch((err) => manageErrors(err));
     };

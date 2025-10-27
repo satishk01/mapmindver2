@@ -8,6 +8,7 @@ import useCreatNode from '../hooks/useCreateNodes';
 import useCreateEdges from '../hooks/useCreateEdges';
 import { nanoid } from 'nanoid';
 import axios from 'axios';
+import { createApiUrl } from '../config/api.js';
 import setRequestData from '../config/setRequestData';
 import setFollowUp from '../config/setFollowUp';
 import { useNodeId } from '@xyflow/react';
@@ -46,7 +47,7 @@ const Prompts = ({ agentName, activeAgent, setActiveAgent, id }) => {
         //     "flow_id": "6782c63b567b16ba8889cb71",
         //     "table_name": data.content
         // }
-        axios.post(`http://localhost:8000/${url}`, body, {
+        axios.post(createApiUrl(url), body, {
             headers: {
                 'Content-Type': headerConfig
             }

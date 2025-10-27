@@ -5,6 +5,7 @@ import LoadingModal from '../modals/LoadingModal';
 import flowStore from '../stores/flowStore';
 import modalStore from '../stores/modalStore';
 import axios from 'axios';
+import { createApiUrl } from '../config/api.js';
 import DOWNLOADSvg from '../assets/download_img.svg';
 import SHARESvg from '../assets/share.svg';
 import {
@@ -57,7 +58,7 @@ const Header = ({
         };
         console.log('JSON DATA', data);
         axios
-            .put(`http://localhost:8000/flow-update`, data, {
+            .put(createApiUrl("flow-update"), data, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -122,7 +123,7 @@ const Header = ({
             flow_id: flow_id
         };
         axios
-            .post(`http://localhost:8000/flow-summarizer`, data, {
+            .post(createApiUrl("flow-summarizer"), data, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -137,7 +138,7 @@ const Header = ({
 
     const getFlowList = () => {
         axios
-            .get(`http://localhost:8000/flows`)
+            .get(createApiUrl("flows"))
             .then((res) => {
                 pushNode(LoadingModal);
                 setFlowList(res.data);

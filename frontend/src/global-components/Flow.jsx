@@ -5,6 +5,7 @@ import modalStore from '../stores/modalStore';
 import LoadingModal from '../modals/LoadingModal';
 import DELETESvg from '../assets/delete.svg';
 import axios from 'axios';
+import { createApiUrl } from '../config/api.js';
 import { useReactFlow } from '@xyflow/react';
 
 const Flow = ({ data, isDrawer, setIsDrawer, flows, setFlowList }) => {
@@ -84,7 +85,7 @@ const Flow = ({ data, isDrawer, setIsDrawer, flows, setFlowList }) => {
             (ele) => ele.flow_id !== data.flow_id
         );
         axios
-            .delete(`http://localhost:8000/delete-flow/${data.flow_id}`)
+            .delete(createApiUrl(`delete-flow/${data.flow_id}`))
             .then((res) => {
                 setFlowList(updatedFlowss);
                 setIsDrawer(true);

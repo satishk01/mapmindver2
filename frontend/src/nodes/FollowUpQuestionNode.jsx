@@ -3,6 +3,7 @@ import FOLLOWUp from '../assets/follow.svg';
 import setQuestionApi from '../config/setQuestionApi';
 import flowStore from '../stores/flowStore';
 import axios from 'axios';
+import { createApiUrl } from '../config/api.js';
 import useStore from '../stores/store';
 import { useShallow } from 'zustand/shallow';
 import generateHexId from '../utils/setUpHex';
@@ -97,7 +98,7 @@ const FollowUpQuestionNode = ({ id, data }) => {
             'followUp'
         );
         axios
-            .post(`http://localhost:8000/${url}`, body, config)
+            .post(createApiUrl(url), body, config)
             .then((res) => setResponse(res.data))
             .catch((err) => manageErrors(err));
     };

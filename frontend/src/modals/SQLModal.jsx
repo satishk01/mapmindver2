@@ -10,6 +10,7 @@ import { useReactFlow } from '@xyflow/react';
 import LoadingModal from './LoadingModal';
 import setRequestData from '../config/setRequestData';
 import axios from 'axios';
+import { createApiUrl } from '../config/api.js';
 import flowStore from '../stores/flowStore';
 import DataSourceSelect from '../global-components/DataSourceSelect';
 import errorStore from '../stores/errorStore';
@@ -36,7 +37,7 @@ const SQLModal = () => {
         const [url, body, headerConfig] = setRequestData('sql', flowId, data);
         console.log('Testtttttt', url, body, headerConfig);
         axios
-            .post(`http://localhost:8000/${url}`, body, {
+            .post(createApiUrl(url), body, {
                 headers: {
                     'Content-Type': headerConfig
                 }

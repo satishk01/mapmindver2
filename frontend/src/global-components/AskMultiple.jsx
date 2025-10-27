@@ -3,6 +3,7 @@ import STARSvg from '../assets/star.svg';
 import generateHexId from '../utils/setUpHex';
 import flowStore from '../stores/flowStore';
 import axios from 'axios';
+import { createApiUrl } from '../config/api.js';
 import errorStore from '../stores/errorStore';
 import ErrorModal from '../modals/ErrorModal';
 import modalStore from '../stores/modalStore';
@@ -37,7 +38,7 @@ const AskMultiple = ({ data, selectedNodes }) => {
             parent_node_ids: parentNodes
         };
         axios
-            .post('http://localhost:8000/multiple-qa-summarize', requestData, {
+            .post(createApiUrl('multiple-qa-summarize'), requestData, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
