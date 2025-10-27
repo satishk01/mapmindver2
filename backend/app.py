@@ -217,7 +217,7 @@ def generate_text_with_claude(prompt, max_tokens=4000):
         }
         
         response = bedrock_runtime_client.invoke_model(
-            modelId="us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+            modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
             body=json_lib.dumps(request_body),
             contentType="application/json",
             accept="application/json"
@@ -256,7 +256,7 @@ def analyze_image_with_claude(image_base64, prompt, mime_type="image/jpeg"):
         }
         
         response = bedrock_runtime_client.invoke_model(
-            modelId="us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+            modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
             body=json_lib.dumps(request_body),
             contentType="application/json",
             accept="application/json"

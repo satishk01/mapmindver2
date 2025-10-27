@@ -84,13 +84,9 @@ const App = () => {
     });
 
     const showDataSource = () => {
-        if (flow_type === 'automatic' && nodes.length > 0) {
-            console.log("false")
-            return false
-        } else {
-        console.log("true", flow_type, nodes)
-        return true
-        }
+        // Always show the AddDataSource component regardless of flow type or node count
+        // Users should be able to add new sources at any time
+        return true;
     }
 
     // const setFlowId = flowStore((s) => s.setFlow);
