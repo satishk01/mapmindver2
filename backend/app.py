@@ -70,16 +70,31 @@ from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 from langchain.chains.combine_documents.reduce import ReduceDocumentsChain
 from langchain.chains import MapReduceDocumentsChain
 import json
-from unstructured.partition.pdf import partition_pdf
-import camelot
+# Conditional imports for PDF processing
+try:
+    from unstructured.partition.pdf import partition_pdf
+    from unstructured.documents.elements import (
+        Text,
+        Title,
+        NarrativeText,
+        ListItem,
+        Header,
+    )
+    UNSTRUCTURED_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: unstructured package not available: {e}")
+    print("PDF processing with unstructured will be disabled.")
+    UNSTRUCTURED_AVAILABLE = False
+
+try:
+    import camelot
+    CAMELOT_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: camelot package not available: {e}")
+    print("PDF table extraction with camelot will be disabled.")
+    CAMELOT_AVAILABLE = False
+
 import re
-from unstructured.documents.elements import (
-    Text,
-    Title,
-    NarrativeText,
-    ListItem,
-    Header,
-)
 import google.generativeai as genai
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part
@@ -477,6 +492,17 @@ def sanitize_path(path):
 
 def camelot_pdf_processing(flow_id, file, flow_type):
     try:
+        # Check if required packages are available
+        if not UNSTRUCTURED_AVAILABLE:
+            raise HTTPException(
+                status_code=500, 
+                detail="PDF processing unavailable: unstructured package not installed. Please install system dependencies."
+            )
+        
+        if not CAMELOT_AVAILABLE:
+            print("Warning: Camelot not available, table extraction will be skipped")
+        
+        try:
         sanitized_flow_id = sanitize_path(flow_id)
         sanitized_filename = file.filename
 
@@ -537,29 +563,37 @@ def camelot_pdf_processing(flow_id, file, flow_type):
                     {"data": element.text, "page_number": element.metadata.page_number}
                 )
 
-        tables = camelot.read_pdf(
-            file_path,
-            pages="all",
-            flavor="stream",
-            edge_tol=900,
-            row_tol=6,
-            strip_text="\n",
-        )
-
-        print(f"Total tables found: {len(tables)}")
-
         result_tbl_list = []
+        
+        # Extract tables from the PDF using camelot if available
+        if CAMELOT_AVAILABLE:
+            try:
+                tables = camelot.read_pdf(
+                    file_path,
+                    pages="all",
+                    flavor="stream",
+                    edge_tol=900,
+                    row_tol=6,
+                    strip_text="\n",
+                )
 
-        # Extract tables from the PDF
-        for i, table in enumerate(tables):
-            page_number = (
-                table.page
-            )  # Get the page number from which the table was extracted
-            print(f"Table {i + 1} extracted from page: {page_number}\n")
-            print(table.df)
-            result_tbl_list.append(
-                {"data": table.df.to_string(index=False), "page_number": table.page}
-            )
+                print(f"Total tables found: {len(tables)}")
+
+                # Extract tables from the PDF
+                for i, table in enumerate(tables):
+                    page_number = (
+                        table.page
+                    )  # Get the page number from which the table was extracted
+                    print(f"Table {i + 1} extracted from page: {page_number}\n")
+                    print(table.df)
+                    result_tbl_list.append(
+                        {"data": table.df.to_string(index=False), "page_number": table.page}
+                    )
+            except Exception as e:
+                print(f"Warning: Camelot table extraction failed: {e}")
+                result_tbl_list = []
+        else:
+            print("Camelot not available, skipping table extraction")
 
         # Combine content_data and result_tbl_list based on the page number
         combined_data = []

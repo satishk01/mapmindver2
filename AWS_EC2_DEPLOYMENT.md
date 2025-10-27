@@ -122,18 +122,33 @@ sudo apt update && sudo apt upgrade -y
 ### 5.3 Install Dependencies
 
 ```bash
+# For Amazon Linux 2023 (recommended)
+sudo yum update -y
+
 # Install Python 3.11+
-sudo apt install python3.11 python3.11-venv python3-pip -y
+sudo yum install -y python3.11 python3.11-pip python3.11-devel
 
 # Install Node.js 18+
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get install -y nodejs
+curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
+sudo yum install -y nodejs
 
 # Install Git
-sudo apt install git -y
+sudo yum install -y git
 
-# Install additional system dependencies
-sudo apt install build-essential libssl-dev libffi-dev python3-dev -y
+# Install system dependencies for OpenCV and unstructured
+sudo yum install -y gcc gcc-c++ make
+sudo yum install -y mesa-libGL mesa-libGL-devel
+sudo yum install -y libXext libSM libXrender
+sudo yum install -y libffi-devel openssl-devel
+sudo yum install -y poppler-utils tesseract tesseract-langpack-eng
+
+# For Ubuntu (alternative)
+# sudo apt update && sudo apt upgrade -y
+# sudo apt install -y python3.11 python3.11-venv python3-pip python3.11-dev
+# sudo apt install -y nodejs npm git
+# sudo apt install -y build-essential libssl-dev libffi-dev
+# sudo apt install -y libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender-dev
+# sudo apt install -y poppler-utils tesseract-ocr tesseract-ocr-eng
 ```
 
 ## Step 6: Clone and Setup Application
@@ -154,8 +169,17 @@ cd backend
 python3.11 -m venv venv
 source venv/bin/activate
 
-# Install Python dependencies
+# Upgrade pip
+pip install --upgrade pip
+
+# Try installing full requirements first
 pip install -r requirements.txt
+
+# If you get OpenCV/graphics errors, use minimal requirements instead:
+# pip install -r requirements-minimal.txt
+
+# Or run the dependency fix script
+# bash ../fix_dependencies.sh
 ```
 
 ### 6.3 Setup Frontend
@@ -419,26 +443,76 @@ Open browser and navigate to:
 
 ### Common Issues
 
-1. **Bedrock Access Denied**:
+1. **OpenCV/Graphics Library Errors**:
+   ```
+   ImportError: libGL.so.1: cannot open shared object file: No such file or directory
+   ```
+   **Solutions**:
+   ```bash
+   # Install system dependencies
+   bash fix_dependencies.sh
+   
+   # Or install manually for Amazon Linux:
+   sudo yum install -y mesa-libGL mesa-libGL-devel libXext libSM libXrender
+   
+   # For Ubuntu:
+   sudo apt-get install -y libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender-dev
+   
+   # Alternative: Use minimal requirements
+   pip install -r requirements-minimal.txt
+   
+   # Set display for headless servers
+   export DISPLAY=:0.0
+   ```
+
+2. **Unstructured Package Issues**:
+   ```
+   ImportError: cannot import name 'partition_pdf' from 'unstructured.partition.pdf'
+   ```
+   **Solutions**:
+   ```bash
+   # Install system dependencies first
+   sudo yum install -y poppler-utils tesseract tesseract-langpack-eng
+   
+   # Reinstall unstructured
+   pip uninstall unstructured unstructured-inference
+   pip install unstructured[pdf]==0.17.2
+   
+   # Or use AWS Textract instead (set processing_type to 'aws')
+   ```
+
+3. **Bedrock Access Denied**:
    - Verify IAM role is attached to EC2 instance
    - Check model access in Bedrock console
    - Ensure correct region configuration
 
-2. **S3 Access Issues**:
+4. **S3 Access Issues**:
    - Verify bucket name in environment variables
    - Check IAM permissions for S3
 
-3. **MongoDB Connection Issues**:
+5. **MongoDB Connection Issues**:
    - Ensure MongoDB is running: `sudo systemctl status mongod`
    - Check connection string in `.env`
 
-4. **Port Access Issues**:
+6. **Port Access Issues**:
    - Verify security group settings
    - Check if ports are open: `sudo netstat -tlnp`
 
-5. **File Upload Issues**:
+7. **File Upload Issues**:
    - Check Nginx client_max_body_size
    - Verify disk space: `df -h`
+
+8. **Python Version Issues**:
+   ```bash
+   # Ensure you're using Python 3.11+
+   python3.11 --version
+   
+   # Recreate virtual environment if needed
+   rm -rf venv
+   python3.11 -m venv venv
+   source venv/bin/activate
+   pip install --upgrade pip
+   ```
 
 ### Useful Commands
 

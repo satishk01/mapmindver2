@@ -1,0 +1,66 @@
+# Minimal requirements without heavy dependencies like unstructured/opencv
+# Use this if you encounter OpenCV/graphics library issues
+
+# Core FastAPI and web framework
+fastapi==0.115.6
+uvicorn==0.34.0
+python-multipart==0.0.20
+starlette==0.41.3
+
+# Database
+pymongo==4.10.1
+
+# AWS services
+boto3==1.35.90
+botocore==1.35.90
+amazon-textract-response-parser==1.0.3
+
+# AI/ML libraries
+openai==1.58.1
+google-generativeai==0.8.3
+google-cloud-aiplatform==1.85.0
+langchain==0.3.13
+langchain-openai==0.2.14
+langchain-chroma==0.2.0
+langchain-core==0.3.28
+langchain-community==0.3.13
+chromadb==0.5.23
+
+# Data processing
+pandas==2.2.3
+numpy==1.26.4
+
+# PDF processing (lightweight alternatives)
+pypdfium2==4.30.1
+pypdf==5.1.0
+
+# Document processing
+python-docx==1.1.2
+python-pptx==1.0.2
+beautifulsoup4==4.12.3
+markdown==3.7
+
+# Utilities
+python-dotenv==1.0.1
+requests==2.32.3
+tiktoken==0.8.0
+
+# SQL and data
+sqlite3  # Built-in
+vanna[chromadb]==0.5.5
+
+# Web crawling
+crawl4ai==0.4.247
+
+# Other utilities
+Pillow==10.4.0
+base64  # Built-in
+hashlib  # Built-in
+uuid  # Built-in
+datetime  # Built-in
+json  # Built-in
+io  # Built-in
+os  # Built-in
+re  # Built-in
+traceback  # Built-in
+time  # Built-in
