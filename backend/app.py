@@ -1317,6 +1317,81 @@ def update_flow(update_data: Flow):
         )
 
 
+def claude_summary_generator(file: UploadFile, flow_id: str, flow_type: str, file_bytes: bytes, file_extension: str):
+    """Generate summary using AWS Bedrock Claude"""
+    try:
+        print(f"Generating summary with Claude for {file_extension} file: {file.filename}")
+        
+        # Extract text from the file based on its type
+        if file_extension == "pdf":
+            # For PDF, extract text using pypdfium2
+            pdf_document = pdfium.PdfDocument(file_bytes)
+            text_content = ""
+            for page_num in range(len(pdf_document)):
+                page = pdf_document[page_num]
+                textpage = page.get_textpage()
+                text_content += textpage.get_text_range() + "\n\n"
+                textpage.close()
+                page.close()
+            pdf_document.close()
+        elif file_extension == "txt":
+            text_content = file_bytes.decode('utf-8')
+        elif file_extension == "docx":
+            doc = Document(BytesIO(file_bytes))
+            text_content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+        elif file_extension == "md":
+            text_content = file_bytes.decode('utf-8')
+        elif file_extension == "html":
+            soup = BeautifulSoup(file_bytes.decode('utf-8'), 'html.parser')
+            text_content = soup.get_text()
+        elif file_extension == "pptx":
+            prs = Presentation(BytesIO(file_bytes))
+            text_content = ""
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        text_content += shape.text + "\n"
+        elif file_extension == "csv":
+            df = pd.read_csv(BytesIO(file_bytes))
+            text_content = df.to_string()
+        else:
+            raise ValueError(f"Unsupported file type: {file_extension}")
+
+        print(f"Extracted text length: {len(text_content)} characters")
+
+        # Create the prompt for Claude to generate a summary
+        prompt = f"""
+        Please generate a concise and comprehensive summary of the following document. 
+        Focus on the main topics, key points, and important information.
+        
+        Document content:
+        {text_content[:40000]}  # Limit content to avoid token limits
+        """
+
+        # Generate summary using Claude
+        summary_text = generate_text_with_claude(prompt, max_tokens=2000)
+        print(f"Claude summary generated: {len(summary_text)} characters")
+
+        # Store component metadata
+        component_metadata = {
+            "flow_id": ObjectId(flow_id),
+            "name": file.filename,
+            "size": len(file_bytes),
+            "type": file_extension,
+            "processing_type": "claude",
+            "summary": summary_text,
+        }
+
+        component_id = component_collection.insert_one(component_metadata).inserted_id
+        
+        return {"component_id": str(component_id), "type": file_extension, "flow_type": flow_type}
+
+    except Exception as e:
+        print(f"Error in claude_summary_generator: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Claude summary generation failed: {str(e)}")
+
+
 def get_summary_from_openai(file: UploadFile, flow_id: str, flow_type: str):
     file.file.seek(0)
     file_bytes = file.file.read()
@@ -1324,6 +1399,10 @@ def get_summary_from_openai(file: UploadFile, flow_id: str, flow_type: str):
 
     if len(file_bytes) == 0:
         raise ValueError("The uploaded file is actually empty!")
+
+    # Use Bedrock Claude if configured, otherwise use OpenAI
+    if use_bedrock_only:
+        return claude_summary_generator(file, flow_id, flow_type, file_bytes, file_extension)
 
     assistant = openai.beta.assistants.create(
         name="Summarize agent",
@@ -1436,6 +1515,184 @@ def get_summary_from_openai(file: UploadFile, flow_id: str, flow_type: str):
     # Return the component ID with the type
     return {"component_id": str(component_id), "type": file_extension, flow_type: flow_type}
 
+def claude_mindmap_generator(file: UploadFile, flow_id: str, flow_type: str, file_bytes: bytes, file_extension: str):
+    """Generate mindmap using AWS Bedrock Claude for PDF processing"""
+    try:
+        print(f"Processing {file_extension} file with Claude: {file.filename}")
+        
+        # Extract text from the file based on its type
+        if file_extension == "pdf":
+            # For PDF, extract text using pypdfium2
+            pdf_document = pdfium.PdfDocument(file_bytes)
+            text_content = ""
+            for page_num in range(len(pdf_document)):
+                page = pdf_document[page_num]
+                textpage = page.get_textpage()
+                text_content += textpage.get_text_range() + "\n\n"
+                textpage.close()
+                page.close()
+            pdf_document.close()
+        elif file_extension == "txt":
+            text_content = file_bytes.decode('utf-8')
+        elif file_extension == "docx":
+            doc = Document(BytesIO(file_bytes))
+            text_content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+        elif file_extension == "md":
+            text_content = file_bytes.decode('utf-8')
+        elif file_extension == "html":
+            soup = BeautifulSoup(file_bytes.decode('utf-8'), 'html.parser')
+            text_content = soup.get_text()
+        elif file_extension == "pptx":
+            prs = Presentation(BytesIO(file_bytes))
+            text_content = ""
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        text_content += shape.text + "\n"
+        elif file_extension == "csv":
+            df = pd.read_csv(BytesIO(file_bytes))
+            text_content = df.to_string()
+        else:
+            raise ValueError(f"Unsupported file type: {file_extension}")
+
+        print(f"Extracted text length: {len(text_content)} characters")
+
+        # Create the prompt for Claude
+        prompt = f"""
+        You are tasked with generating a JSON mind map that is compatible with React Flow for rendering a flow diagram which should cover all the details and important aspects of the document. The mind map should adhere to the following rules:
+
+        1. **Node Types:**
+        - There will always be one `dataSource` node, which serves as the root of the flow.
+        - There will be `question` nodes which will be connected to subsequent `response` nodes.
+        - The `question` nodes can be connected to data sources or other `response` nodes.
+        - There will be `response` nodes for the above questions.
+        
+        2. **Node Relationships:**
+        - `response` nodes may also connect to each other if it improves the logical flow or visualization.
+        - `question` nodes will always have a `response` node
+        - `dataSource` node will always be connected to a question node
+
+        3. **Node Properties:**
+        - Each node should have:
+            - `id` (unique identifier of 12 or 24 digit unique uuid or nanoid)
+            - `type` (`dataSource`, `question`, or `response`)
+            - `position` (coordinates in the form {{"x": <number>, "y": <number>}} for layout)
+            - `measured` (an object defining width and height):
+                {{
+                    "width": <number>,
+                    "height": <number>
+                }}
+            - `targetPosition` (position of the target connection, default to `"left"`)
+            - `sourcePosition` (position of the source connection, default to `"right"`)
+            - `selected` (boolean, default to `false`)
+            - `deletable` (boolean, default to `true` for `response` and `question`, `false` for `dataSource`)
+
+        4. **Node Data Format:**
+        - `dataSource` Node:
+            - `data` contains the following properties:
+                {{
+                    "prompt": "<data source description>",
+                    "name": "{file_extension}",
+                    "content": "<file name or content>",
+                    "flow_id": "{flow_id}",
+                    "file": "{file.filename}"
+                }}
+
+        5. **Question Data Format:**
+        - `question` Node:
+            - `data` contains the following properties:
+                {{
+                    "question": "<the question asked for the response>",
+                    "component_id": "<component reference ID - unique identifier>",
+                    "component_type": "{file_extension}"
+                }}
+
+        6. **RESPONSE NODE FORMAT**
+        - `response` Node:
+            - `data` contains nested properties:
+                {{
+                    "id": "<unique identifier>",
+                    "type": "response",
+                    "data": {{
+                        "question": "<question text, if applicable>",
+                        "summ": "<detailed answer for the above question>",
+                        "df": [],
+                        "graph": "",
+                        "flow_id": "{flow_id}",
+                        "component_id": "<component reference ID>",
+                        "component_type": "{file_extension}"
+                    }}
+                }}
+
+        7. **Connections:**
+        - Connections between nodes should be represented by edges, with the following format:
+            - `id` (unique identifier for the edge)
+            - `source` (ID of the source node)
+            - `target` (ID of the target node)
+            - `type` (optional, defaults to `default`)
+            - `animated` (always true)
+
+        8. **Viewport Configuration:**
+        - Include a `viewport` object that specifies:
+            - `x` (horizontal position of the viewport)
+            - `y` (vertical position of the viewport)
+            - `zoom` (zoom level for initial rendering)
+
+        ### Additional Considerations:
+        - Ensure that the node positions are distributed properly to avoid overlap.
+        - Prioritize connecting `response` nodes where it adds logical structure to the flow.
+
+        ### IMPORTANT:
+        - **RETURN ONLY THE VALID JSON OBJECT AND NO ADDITIONAL COMMENTS**.
+        - Do **not** include any explanations, text, or additional information.
+
+        Here is the document content to analyze:
+
+        {text_content[:50000]}  # Limit content to avoid token limits
+        """
+
+        # Generate response using Claude
+        response_text = generate_text_with_claude(prompt, max_tokens=4000)
+        print(f"Claude response: {response_text[:500]}...")
+
+        # Clean and parse the JSON response
+        response_json = response_text.replace("```json", "").replace("```", "").strip()
+        
+        try:
+            parsed_json = json.loads(response_json)
+        except json.JSONDecodeError as e:
+            print(f"JSON parsing error: {e}")
+            print(f"Raw response: {response_json}")
+            raise HTTPException(status_code=500, detail=f"Failed to parse Claude response as JSON: {e}")
+
+        # Store component metadata
+        component_metadata = {
+            "flow_id": ObjectId(flow_id),
+            "name": file.filename,
+            "size": len(file_bytes),
+            "type": file_extension,
+            "processing_type": "claude",
+            "mindmap_json": parsed_json,
+        }
+
+        component_id = component_collection.insert_one(component_metadata).inserted_id
+        flow = flow_collection.find_one({"_id": ObjectId(flow_id)})
+        
+        return {
+            "flow_id": flow_id,
+            "flow_name": flow["flow_name"],
+            "component_id": str(component_id),
+            "type": file_extension,
+            "mindmap_json": parsed_json,
+            "flow_type": flow_type
+        }
+
+    except Exception as e:
+        print(f"Error in claude_mindmap_generator: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Claude processing failed: {str(e)}")
+
+
 def openai_mindmap_generator(file: UploadFile, flow_id: str, flow_type: str):
     file.file.seek(0)
     file_bytes = file.file.read()
@@ -1443,6 +1700,10 @@ def openai_mindmap_generator(file: UploadFile, flow_id: str, flow_type: str):
 
     if len(file_bytes) == 0:
         raise ValueError("The uploaded file is actually empty!")
+
+    # Use Bedrock Claude if configured, otherwise use OpenAI
+    if use_bedrock_only:
+        return claude_mindmap_generator(file, flow_id, flow_type, file_bytes, file_extension)
 
     assistant = openai.beta.assistants.create(
         name="MindMap Builder",
@@ -1755,17 +2016,20 @@ def get_page_len(file: UploadFile):
 def create_pdf_component(
     file: UploadFile, flow_id: str = Form(...), processing_type: str = Form(...)
 ):
+    print(f"PDF processing started - File: {file.filename}, Processing Type: {processing_type}, Use Bedrock: {use_bedrock_only}")
     flow = flow_collection.find_one({"_id": ObjectId(flow_id)})
     if file.filename.endswith(".pdf"):
         print(get_page_len(file))
         check_page_length = get_page_len(file)
         if processing_type == "gpt" and not check_page_length and flow["flow_type"] == 'manual':
+            print(f"Processing manual flow with GPT/Claude - Use Bedrock: {use_bedrock_only}")
             return get_summary_from_openai(file, flow_id=flow_id, flow_type='manual')
         elif processing_type == "aws" and flow["flow_type"] == 'manual':
             return use_aws_textract(file, flow_id=flow_id, flow_type='manual')
         elif processing_type == "custom" and flow["flow_type"] == 'manual':
             return camelot_pdf_processing(flow_id, file, 'manual')
         elif processing_type == "gpt" and not check_page_length and flow["flow_type"] == 'automatic':
+            print(f"Processing automatic flow with GPT/Claude - Use Bedrock: {use_bedrock_only}")
             return openai_mindmap_generator(file, flow_id=flow_id, flow_type='automatic')
         elif processing_type == "aws" and flow["flow_type"] == 'automatic':
             return use_aws_textract(file, flow_id=flow_id, flow_type='automatic')

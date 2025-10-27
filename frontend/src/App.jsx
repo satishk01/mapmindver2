@@ -174,7 +174,7 @@ const App = () => {
                 {showDataSource() ? 
                 <Panel
                     position="bottom-left"
-                    style={isDrawer ? { display: 'none' } : { display: 'flex' }}
+                    style={{ display: 'flex' }}
                 >
                     <AddDataSource />
                 </Panel>

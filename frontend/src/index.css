@@ -521,7 +521,7 @@ h5 {
   font-size: 1.125rem;
   line-height: 21.6px;
   font-weight: 700;
-  opacity: 50%;
+  opacity: 100%;
   cursor: pointer;
   color: var(--font-color);
 }
