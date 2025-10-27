@@ -1518,7 +1518,12 @@ def get_summary_from_openai(file: UploadFile, flow_id: str, flow_type: str):
 def claude_mindmap_generator(file: UploadFile, flow_id: str, flow_type: str, file_bytes: bytes, file_extension: str):
     """Generate mindmap using AWS Bedrock Claude for PDF processing"""
     try:
-        print(f"Processing {file_extension} file with Claude: {file.filename}")
+        print(f"🤖 CLAUDE MINDMAP GENERATOR STARTED")
+        print(f"   File: {file.filename}")
+        print(f"   Extension: {file_extension}")
+        print(f"   File size: {len(file_bytes)} bytes")
+        print(f"   Flow ID: {flow_id}")
+        print(f"   Flow Type: {flow_type}")
         
         # Extract text from the file based on its type
         if file_extension == "pdf":
@@ -1652,8 +1657,16 @@ def claude_mindmap_generator(file: UploadFile, flow_id: str, flow_type: str, fil
         """
 
         # Generate response using Claude
-        response_text = generate_text_with_claude(prompt, max_tokens=4000)
-        print(f"Claude response: {response_text[:500]}...")
+        print(f"🤖 Sending request to Claude...")
+        print(f"   Prompt length: {len(prompt)} characters")
+        
+        try:
+            response_text = generate_text_with_claude(prompt, max_tokens=4000)
+            print(f"✅ Claude response received: {len(response_text)} characters")
+            print(f"   First 200 chars: {response_text[:200]}...")
+        except Exception as e:
+            print(f"❌ Claude API call failed: {e}")
+            raise
 
         # Clean and parse the JSON response
         response_json = response_text.replace("```json", "").replace("```", "").strip()
@@ -2016,31 +2029,58 @@ def get_page_len(file: UploadFile):
 def create_pdf_component(
     file: UploadFile, flow_id: str = Form(...), processing_type: str = Form(...)
 ):
-    print(f"PDF processing started - File: {file.filename}, Processing Type: {processing_type}, Use Bedrock: {use_bedrock_only}")
-    flow = flow_collection.find_one({"_id": ObjectId(flow_id)})
-    if file.filename.endswith(".pdf"):
-        print(get_page_len(file))
-        check_page_length = get_page_len(file)
-        if processing_type == "gpt" and not check_page_length and flow["flow_type"] == 'manual':
-            print(f"Processing manual flow with GPT/Claude - Use Bedrock: {use_bedrock_only}")
-            return get_summary_from_openai(file, flow_id=flow_id, flow_type='manual')
-        elif processing_type == "aws" and flow["flow_type"] == 'manual':
-            return use_aws_textract(file, flow_id=flow_id, flow_type='manual')
-        elif processing_type == "custom" and flow["flow_type"] == 'manual':
-            return camelot_pdf_processing(flow_id, file, 'manual')
-        elif processing_type == "gpt" and not check_page_length and flow["flow_type"] == 'automatic':
-            print(f"Processing automatic flow with GPT/Claude - Use Bedrock: {use_bedrock_only}")
-            return openai_mindmap_generator(file, flow_id=flow_id, flow_type='automatic')
-        elif processing_type == "aws" and flow["flow_type"] == 'automatic':
-            return use_aws_textract(file, flow_id=flow_id, flow_type='automatic')
-        elif processing_type == "custom" and flow["flow_type"] == 'automatic':
-            return camelot_pdf_processing(flow_id, file, 'automatic')
+    print("=" * 60)
+    print(f"📄 PDF PROCESSING STARTED")
+    print(f"   File: {file.filename}")
+    print(f"   Processing Type: {processing_type}")
+    print(f"   Flow ID: {flow_id}")
+    print(f"   Use Bedrock Only: {use_bedrock_only}")
+    print(f"   AWS Region: {aws_region}")
+    print("=" * 60)
+    
+    try:
+        flow = flow_collection.find_one({"_id": ObjectId(flow_id)})
+        if not flow:
+            print(f"❌ Flow not found: {flow_id}")
+            raise HTTPException(status_code=404, detail="Flow not found")
+        
+        print(f"✅ Flow found: {flow.get('flow_name', 'Unknown')} (Type: {flow.get('flow_type', 'Unknown')})")
+        if file.filename.endswith(".pdf"):
+            print(f"📊 Checking page length...")
+            check_page_length = get_page_len(file)
+            print(f"   Page length check result: {check_page_length}")
+            
+            if processing_type == "gpt" and not check_page_length and flow["flow_type"] == 'manual':
+                print(f"🔄 Processing manual flow with GPT/Claude - Use Bedrock: {use_bedrock_only}")
+                return get_summary_from_openai(file, flow_id=flow_id, flow_type='manual')
+            elif processing_type == "aws" and flow["flow_type"] == 'manual':
+                print(f"🔄 Processing manual flow with AWS Textract")
+                return use_aws_textract(file, flow_id=flow_id, flow_type='manual')
+            elif processing_type == "custom" and flow["flow_type"] == 'manual':
+                print(f"🔄 Processing manual flow with Custom RAG")
+                return camelot_pdf_processing(flow_id, file, 'manual')
+            elif processing_type == "gpt" and not check_page_length and flow["flow_type"] == 'automatic':
+                print(f"🔄 Processing automatic flow with GPT/Claude - Use Bedrock: {use_bedrock_only}")
+                return openai_mindmap_generator(file, flow_id=flow_id, flow_type='automatic')
+            elif processing_type == "aws" and flow["flow_type"] == 'automatic':
+                print(f"🔄 Processing automatic flow with AWS Textract")
+                return use_aws_textract(file, flow_id=flow_id, flow_type='automatic')
+            elif processing_type == "custom" and flow["flow_type"] == 'automatic':
+                print(f"🔄 Processing automatic flow with Custom RAG")
+                return camelot_pdf_processing(flow_id, file, 'automatic')
+            else:
+                print(f"❌ Exceeded page limit for GPT processing")
+                traceback.print_exc()
+                raise HTTPException(status_code=400, detail="Exceeded Page limit for GPT.")
         else:
+            print(f"❌ Invalid file type: {file.filename}")
             traceback.print_exc()
-            return HTTPException(status_code=404, detail="Exceeded Page limit for GPT.")
-    else:
+            raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
+    
+    except Exception as e:
+        print(f"❌ Error in PDF processing: {str(e)}")
         traceback.print_exc()
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
+        raise HTTPException(status_code=500, detail=f"PDF processing failed: {str(e)}")
 
 @app.post("/component-create-img")
 async def create_img_component(flow_id: str = Form(...), file: UploadFile = File(...)):
