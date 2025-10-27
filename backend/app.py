@@ -503,170 +503,170 @@ def camelot_pdf_processing(flow_id, file, flow_type):
             print("Warning: Camelot not available, table extraction will be skipped")
         
         try:
-        sanitized_flow_id = sanitize_path(flow_id)
-        sanitized_filename = file.filename
+            sanitized_flow_id = sanitize_path(flow_id)
+            sanitized_filename = file.filename
 
-        flow_dir = os.path.join(UPLOAD_DIR, sanitized_flow_id)
+            flow_dir = os.path.join(UPLOAD_DIR, sanitized_flow_id)
 
-        # Ensure the directory exists
-        os.makedirs(flow_dir, exist_ok=True)
+            # Ensure the directory exists
+            os.makedirs(flow_dir, exist_ok=True)
 
-        # Create the full file path
-        file_path = os.path.join(flow_dir, sanitized_filename)
+            # Create the full file path
+            file_path = os.path.join(flow_dir, sanitized_filename)
 
-        print(file_path)
+            print(file_path)
 
-        # Save the uploaded file
-        with open(file_path, "wb") as f:
-            # Read the file content and write it to disk
-            f.write(file.file.read())
+            # Save the uploaded file
+            with open(file_path, "wb") as f:
+                # Read the file content and write it to disk
+                f.write(file.file.read())
 
-        file.file.seek(0)
-        file_bytes = file.file.read()
+            file.file.seek(0)
+            file_bytes = file.file.read()
 
-        print(f"File saved at: {file_path}")
+            print(f"File saved at: {file_path}")
 
-        print(file_bytes)
+            print(file_bytes)
 
-        file_hash = calculate_file_hash(file_bytes)
-        print(file_hash)
+            file_hash = calculate_file_hash(file_bytes)
+            print(file_hash)
 
-        existing_component = component_collection.find_one(
-            {"file_hash": file_hash, "flow_id": ObjectId(flow_id)}
-        )
-        if existing_component:
-            print("File already exists in the system")
-            raise HTTPException(
-                status_code=400, detail="File already exists in the system."
+            existing_component = component_collection.find_one(
+                {"file_hash": file_hash, "flow_id": ObjectId(flow_id)}
             )
-
-        # Now, upload the file to S3
-        folder = f"uploads/{flow_id}/"
-        s3_key = folder + sanitized_filename
-
-        # Pass the local file path to upload_to_s3
-        upload_to_s3(file_bytes, bucket_name, s3_key)
-        print("File uploaded to S3")
-
-        ocr_config = {
-            "languages": ["eng"],
-            "strategy": "fast",
-        }
-        elements = partition_pdf(filename=file_path, **ocr_config)
-
-        content_data = []
-
-        # Extract content (text, title, etc.) from the PDF
-        for element in elements:
-            if isinstance(element, (Text, Title, NarrativeText, ListItem, Header)):
-                content_data.append(
-                    {"data": element.text, "page_number": element.metadata.page_number}
+            if existing_component:
+                print("File already exists in the system")
+                raise HTTPException(
+                    status_code=400, detail="File already exists in the system."
                 )
 
-        result_tbl_list = []
-        
-        # Extract tables from the PDF using camelot if available
-        if CAMELOT_AVAILABLE:
-            try:
-                tables = camelot.read_pdf(
-                    file_path,
-                    pages="all",
-                    flavor="stream",
-                    edge_tol=900,
-                    row_tol=6,
-                    strip_text="\n",
-                )
+            # Now, upload the file to S3
+            folder = f"uploads/{flow_id}/"
+            s3_key = folder + sanitized_filename
 
-                print(f"Total tables found: {len(tables)}")
+            # Pass the local file path to upload_to_s3
+            upload_to_s3(file_bytes, bucket_name, s3_key)
+            print("File uploaded to S3")
 
-                # Extract tables from the PDF
-                for i, table in enumerate(tables):
-                    page_number = (
-                        table.page
-                    )  # Get the page number from which the table was extracted
-                    print(f"Table {i + 1} extracted from page: {page_number}\n")
-                    print(table.df)
-                    result_tbl_list.append(
-                        {"data": table.df.to_string(index=False), "page_number": table.page}
-                    )
-            except Exception as e:
-                print(f"Warning: Camelot table extraction failed: {e}")
-                result_tbl_list = []
-        else:
-            print("Camelot not available, skipping table extraction")
-
-        # Combine content_data and result_tbl_list based on the page number
-        combined_data = []
-
-        for content_item in content_data:
-            page_number = content_item["page_number"]
-            # Check if a matching table exists for the current page number
-            matching_table = next(
-                (
-                    table
-                    for table in result_tbl_list
-                    if table["page_number"] == page_number
-                ),
-                None,
-            )
-
-            # Store content along with the page number and table (if exists)
-            if matching_table:
-                combined_content = (
-                    f"{content_item['data']}\n\nTable:\n{matching_table['data']}"
-                )
-                combined_data.append(
-                    {"page_number": page_number, "content": combined_content}
-                )
-            else:
-                combined_data.append(
-                    {"page_number": page_number, "content": content_item["data"]}
-                )
-
-        print("-==============-")
-
-        # Print the final combined data
-        print(combined_data)
-
-        combined_data_str = json.dumps(combined_data, indent=4)
-
-        chunks = do_semantic_chunking(combined_data_str)
-        print(chunks)
-
-        summary = process_pdf_summary(chunks)
-        
-        if flow_type == "manual":
-
-            component_metadata = {
-                "flow_id": ObjectId(flow_id),
-                "name": file.filename,
-                "file_hash": file_hash,
-                "size": len(file_bytes),
-                "s3_path": s3_key,
-                "type": "pdf",
-                "processing_type": "custom",
-                "summary": summary,
+            ocr_config = {
+                "languages": ["eng"],
+                "strategy": "fast",
             }
+            elements = partition_pdf(filename=file_path, **ocr_config)
 
-            component_id = component_collection.insert_one(component_metadata).inserted_id
-            EmbeddingsDocuments = []
-            for i in range(len(chunks)):
-                metadata = {
-                    "component_id": str(component_id),
-                    "file_name": file.filename,
-                    "flow_id": flow_id,
-                }
-                EmbeddingsDocuments.append(
-                    LangDocument(page_content=chunks[i].page_content, metadata=metadata)
+            content_data = []
+
+            # Extract content (text, title, etc.) from the PDF
+            for element in elements:
+                if isinstance(element, (Text, Title, NarrativeText, ListItem, Header)):
+                    content_data.append(
+                        {"data": element.text, "page_number": element.metadata.page_number}
+                    )
+
+            result_tbl_list = []
+            
+            # Extract tables from the PDF using camelot if available
+            if CAMELOT_AVAILABLE:
+                try:
+                    tables = camelot.read_pdf(
+                        file_path,
+                        pages="all",
+                        flavor="stream",
+                        edge_tol=900,
+                        row_tol=6,
+                        strip_text="\n",
+                    )
+
+                    print(f"Total tables found: {len(tables)}")
+
+                    # Extract tables from the PDF
+                    for i, table in enumerate(tables):
+                        page_number = (
+                            table.page
+                        )  # Get the page number from which the table was extracted
+                        print(f"Table {i + 1} extracted from page: {page_number}\n")
+                        print(table.df)
+                        result_tbl_list.append(
+                            {"data": table.df.to_string(index=False), "page_number": table.page}
+                        )
+                except Exception as e:
+                    print(f"Warning: Camelot table extraction failed: {e}")
+                    result_tbl_list = []
+            else:
+                print("Camelot not available, skipping table extraction")
+
+            # Combine content_data and result_tbl_list based on the page number
+            combined_data = []
+
+            for content_item in content_data:
+                page_number = content_item["page_number"]
+                # Check if a matching table exists for the current page number
+                matching_table = next(
+                    (
+                        table
+                        for table in result_tbl_list
+                        if table["page_number"] == page_number
+                    ),
+                    None,
                 )
-            uuids = [str(uuid4()) for _ in range(len(EmbeddingsDocuments))]
 
-            vector_store_from_client.add_documents(documents=EmbeddingsDocuments, ids=uuids)
-            return {"component_id": str(component_id), "type": "pdf"}
-        
-        else:
-                    
-            template = """You are tasked with generating a JSON mind map for given summary of the pdf document and that should be compatible with React Flow for rendering a flow diagram. The mind map should adhere to the following rules:
+                # Store content along with the page number and table (if exists)
+                if matching_table:
+                    combined_content = (
+                        f"{content_item['data']}\n\nTable:\n{matching_table['data']}"
+                    )
+                    combined_data.append(
+                        {"page_number": page_number, "content": combined_content}
+                    )
+                else:
+                    combined_data.append(
+                        {"page_number": page_number, "content": content_item["data"]}
+                    )
+
+            print("-==============-")
+
+            # Print the final combined data
+            print(combined_data)
+
+            combined_data_str = json.dumps(combined_data, indent=4)
+
+            chunks = do_semantic_chunking(combined_data_str)
+            print(chunks)
+
+            summary = process_pdf_summary(chunks)
+            
+            if flow_type == "manual":
+
+                component_metadata = {
+                    "flow_id": ObjectId(flow_id),
+                    "name": file.filename,
+                    "file_hash": file_hash,
+                    "size": len(file_bytes),
+                    "s3_path": s3_key,
+                    "type": "pdf",
+                    "processing_type": "custom",
+                    "summary": summary,
+                }
+
+                component_id = component_collection.insert_one(component_metadata).inserted_id
+                EmbeddingsDocuments = []
+                for i in range(len(chunks)):
+                    metadata = {
+                        "component_id": str(component_id),
+                        "file_name": file.filename,
+                        "flow_id": flow_id,
+                    }
+                    EmbeddingsDocuments.append(
+                        LangDocument(page_content=chunks[i].page_content, metadata=metadata)
+                    )
+                uuids = [str(uuid4()) for _ in range(len(EmbeddingsDocuments))]
+
+                vector_store_from_client.add_documents(documents=EmbeddingsDocuments, ids=uuids)
+                return {"component_id": str(component_id), "type": "pdf"}
+            
+            else:
+                        
+                template = """You are tasked with generating a JSON mind map for given summary of the pdf document and that should be compatible with React Flow for rendering a flow diagram. The mind map should adhere to the following rules:
 
                 1. **Node Types:**
                 - There will always be one `dataSource` node, which serves as the root of the flow.
@@ -746,42 +746,45 @@ def camelot_pdf_processing(flow_id, file, flow_type):
                 - Maintain the format with double curly braces `{{` and `}}` as shown in the format.
                 """
 
-            prompt = PromptTemplate.from_template(template)
+                prompt = PromptTemplate.from_template(template)
 
-            lm_chain = prompt | llm
-            
-            answer = lm_chain.invoke(
-                    {"summary_pdf": summary, "flow_id": flow_id, "filename": file.filename}
-            )
+                lm_chain = prompt | llm
+                
+                answer = lm_chain.invoke(
+                        {"summary_pdf": summary, "flow_id": flow_id, "filename": file.filename}
+                )
 
-            responseList = answer.content
+                responseList = answer.content
 
-            print(responseList)
+                print(responseList)
 
-            response_json =  response_json.replace("```json", "").replace("```", "").replace("\n", "").strip()
-            
-            print(response_json)
-            
-            component_metadata = {
-                "flow_id": ObjectId(flow_id),
-                "name": file.filename,
-                "type": "pdf",
-                "processing_type": "gpt",
-                "mindmap_json": response_json,
-            }
+                response_json = responseList.replace("```json", "").replace("```", "").replace("\n", "").strip()
+                
+                print(response_json)
+                
+                component_metadata = {
+                    "flow_id": ObjectId(flow_id),
+                    "name": file.filename,
+                    "type": "pdf",
+                    "processing_type": "gpt",
+                    "mindmap_json": response_json,
+                }
 
-            component_id = component_collection.insert_one(component_metadata).inserted_id
+                component_id = component_collection.insert_one(component_metadata).inserted_id
 
-            return {
-                "component_id": str(component_id),
-                "type": "pdf",
-                "mindmap_json": response_json,
-                "flow_type": "automatic"
-            }
-            
+                return {
+                    "component_id": str(component_id),
+                    "type": "pdf",
+                    "mindmap_json": response_json,
+                    "flow_type": "automatic"
+                }
+                
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=e)
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def extract_text_from_upload(file: UploadFile) -> str:
