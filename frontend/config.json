@@ -1,0 +1,18 @@
+{
+  "development": {
+    "apiUrl": "http://localhost:8000",
+    "description": "Local development server"
+  },
+  "production": {
+    "apiUrl": "http://184.73.104.73:8000",
+    "description": "Current EC2 production server"
+  },
+  "staging": {
+    "apiUrl": "http://184.73.104.73:8000",
+    "description": "Using same EC2 instance for staging"
+  },
+  "notes": {
+    "updateInstructions": "To update the IP address, modify the apiUrl values above and restart the frontend application",
+    "environmentFiles": "Also update .env, .env.production, and .env.development files as needed"
+  }
+}

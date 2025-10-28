@@ -59,7 +59,10 @@ const Drawer = ({ isDrawer, setIsDrawer, flowList, setFlowList }) => {
     };
 
     const newFlowModal = () => {
-        setIsViewFlowModal(true)
+        console.log('🆕 NEW Flow button clicked');
+        console.log('   Current isViewModal state:', isViewModal);
+        setIsViewFlowModal(true);
+        console.log('   Setting isViewModal to true');
     }
 
     const setupNewFlow = (res) => {
@@ -119,7 +122,8 @@ const Drawer = ({ isDrawer, setIsDrawer, flowList, setFlowList }) => {
                     </div>
                     <div
                         id="new-flow"
-                        onClick={(e) => newFlowModal(e)}
+                        onClick={() => newFlowModal()}
+                        style={{ cursor: 'pointer' }}
                     >
                         <img
                             src={ADDSvg}

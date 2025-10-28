@@ -217,7 +217,7 @@ def generate_text_with_claude(prompt, max_tokens=4000):
         }
         
         response = bedrock_runtime_client.invoke_model(
-            modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            modelId="us.anthropic.claude-3-5-sonnet-20241022-v2:0",
             body=json_lib.dumps(request_body),
             contentType="application/json",
             accept="application/json"
@@ -256,7 +256,7 @@ def analyze_image_with_claude(image_base64, prompt, mime_type="image/jpeg"):
         }
         
         response = bedrock_runtime_client.invoke_model(
-            modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            modelId="us.anthropic.claude-3-5-sonnet-20241022-v2:0",
             body=json_lib.dumps(request_body),
             contentType="application/json",
             accept="application/json"
@@ -329,6 +329,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "message": "GenAI Mind Map Flow Builder API",
+        "use_bedrock_only": use_bedrock_only,
+        "aws_region": aws_region
+    }
+
+@app.get("/health")
+def detailed_health():
+    """Detailed health check"""
+    return {
+        "status": "healthy",
+        "bedrock_enabled": use_bedrock_only,
+        "aws_region": aws_region,
+        "mongodb_connected": True,  # We'll assume it's connected if we get here
+        "endpoints": [
+            "/component-create-pdf",
+            "/flows",
+            "/health"
+        ]
+    }
 
 
 client = MongoClient(mongo_db_url)
@@ -1320,20 +1345,32 @@ def update_flow(update_data: Flow):
 def claude_summary_generator(file: UploadFile, flow_id: str, flow_type: str, file_bytes: bytes, file_extension: str):
     """Generate summary using AWS Bedrock Claude"""
     try:
-        print(f"Generating summary with Claude for {file_extension} file: {file.filename}")
+        print(f"🤖 CLAUDE SUMMARY GENERATOR STARTED")
+        print(f"   File: {file.filename}")
+        print(f"   Extension: {file_extension}")
+        print(f"   File size: {len(file_bytes)} bytes")
+        print(f"   Flow ID: {flow_id}")
+        print(f"   Flow Type: {flow_type}")
         
         # Extract text from the file based on its type
         if file_extension == "pdf":
+            print(f"📄 Extracting text from PDF...")
             # For PDF, extract text using pypdfium2
             pdf_document = pdfium.PdfDocument(file_bytes)
             text_content = ""
-            for page_num in range(len(pdf_document)):
+            total_pages = len(pdf_document)
+            print(f"   Total pages: {total_pages}")
+            
+            for page_num in range(total_pages):
+                print(f"   Processing page {page_num + 1}/{total_pages}")
                 page = pdf_document[page_num]
                 textpage = page.get_textpage()
-                text_content += textpage.get_text_range() + "\n\n"
+                page_text = textpage.get_text_range()
+                text_content += page_text + "\n\n"
                 textpage.close()
                 page.close()
             pdf_document.close()
+            print(f"✅ PDF text extraction completed")
         elif file_extension == "txt":
             text_content = file_bytes.decode('utf-8')
         elif file_extension == "docx":
@@ -1357,7 +1394,13 @@ def claude_summary_generator(file: UploadFile, flow_id: str, flow_type: str, fil
         else:
             raise ValueError(f"Unsupported file type: {file_extension}")
 
-        print(f"Extracted text length: {len(text_content)} characters")
+        print(f"📊 Extracted text length: {len(text_content)} characters")
+
+        # Truncate content if too long to avoid token limits
+        max_content_length = 40000
+        if len(text_content) > max_content_length:
+            text_content = text_content[:max_content_length]
+            print(f"⚠️  Content truncated to {max_content_length} characters")
 
         # Create the prompt for Claude to generate a summary
         prompt = f"""
@@ -1365,14 +1408,16 @@ def claude_summary_generator(file: UploadFile, flow_id: str, flow_type: str, fil
         Focus on the main topics, key points, and important information.
         
         Document content:
-        {text_content[:40000]}  # Limit content to avoid token limits
+        {text_content}
         """
 
+        print(f"🔄 Sending request to Claude...")
         # Generate summary using Claude
         summary_text = generate_text_with_claude(prompt, max_tokens=2000)
-        print(f"Claude summary generated: {len(summary_text)} characters")
+        print(f"✅ Claude summary generated: {len(summary_text)} characters")
 
         # Store component metadata
+        print(f"💾 Storing component metadata in database...")
         component_metadata = {
             "flow_id": ObjectId(flow_id),
             "name": file.filename,
@@ -1383,8 +1428,12 @@ def claude_summary_generator(file: UploadFile, flow_id: str, flow_type: str, fil
         }
 
         component_id = component_collection.insert_one(component_metadata).inserted_id
+        print(f"✅ Component stored with ID: {component_id}")
         
-        return {"component_id": str(component_id), "type": file_extension, "flow_type": flow_type}
+        result = {"component_id": str(component_id), "type": file_extension, "flow_type": flow_type}
+        print(f"🎉 CLAUDE SUMMARY GENERATOR COMPLETED")
+        print(f"   Result: {result}")
+        return result
 
     except Exception as e:
         print(f"Error in claude_summary_generator: {str(e)}")

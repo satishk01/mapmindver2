@@ -137,16 +137,46 @@ const Header = ({
     };
 
     const getFlowList = () => {
-        axios
-            .get(createApiUrl("flows"))
-            .then((res) => {
-                pushNode(LoadingModal);
-                setFlowList(res.data);
-                setIsDrawer(true);
-                popNode(LoadingModal);
-            })
-
-            .catch((err) => manageErrors(err));
+        console.log('🔍 Getting flow list...');
+        console.log('🔍 API URL will be:', createApiUrl("flows"));
+        
+        try {
+            pushNode(LoadingModal);
+            
+            axios
+                .get(createApiUrl("flows"))
+                .then((res) => {
+                    console.log('✅ Flow list received:', res.data);
+                    console.log('✅ Response status:', res.status);
+                    setFlowList(res.data || []);
+                    setIsDrawer(true);
+                    popNode();
+                })
+                .catch((err) => {
+                    console.error('❌ Error getting flow list:', err);
+                    console.error('❌ Error details:', {
+                        message: err.message,
+                        status: err.response?.status,
+                        statusText: err.response?.statusText,
+                        data: err.response?.data
+                    });
+                    popNode();
+                    
+                    // Still open the drawer even if there's an error, but with empty list
+                    setFlowList([]);
+                    setIsDrawer(true);
+                    
+                    // Only show error modal for serious errors, not for empty responses
+                    if (err.response?.status !== 200) {
+                        manageErrors(err);
+                    }
+                });
+        } catch (error) {
+            console.error('❌ Exception in getFlowList:', error);
+            popNode();
+            setFlowList([]);
+            setIsDrawer(true);
+        }
     };
 
     const manageTheme = (e) => {
@@ -167,7 +197,15 @@ const Header = ({
             <img
                 src={DRAWERSvg}
                 alt="Drawer Svg"
-                onClick={(e) => getFlowList(true)}
+                onClick={() => {
+                    console.log('🍔 Hamburger menu clicked - starting flow list fetch');
+                    try {
+                        getFlowList();
+                    } catch (error) {
+                        console.error('❌ Error in getFlowList:', error);
+                    }
+                }}
+                style={{ cursor: 'pointer', zIndex: 1000 }}
             />
             <input
                 type="text"

@@ -10,6 +10,7 @@ import modalStore from '../stores/modalStore';
 import axios from 'axios';
 import { createApiUrl } from '../config/api.js';
 import LoadingModal from './LoadingModal';
+import PDFProcessingModal from './PDFProcessingModal';
 import setRequestData from '../config/setRequestData';
 import flowStore from '../stores/flowStore';
 import DataSourceSet from '../nodes/DataSourceSet';
@@ -22,6 +23,8 @@ import { useReactFlow } from '@xyflow/react';
 const PDFModal = () => {
     const flowId = flowStore((s) => s.flow_id);
     const [file, setFile] = useState();
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [processingStatus, setProcessingStatus] = useState('');
     const pushNode = modalStore((s) => s.pushNode);
     const popNode = modalStore((s) => s.popNode);
     // const csvAccept = ".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
@@ -52,20 +55,73 @@ const PDFModal = () => {
     const pdfAccept = 'application/pdf';
     const [processingType, setProcessingType] = useState('gpt');
     const addDataSource = (e) => {
+        console.log('🚀 PDF Upload Started');
+        console.log('   File:', file);
+        console.log('   Processing Type:', processingType);
+        console.log('   Flow ID:', flowId);
+        
         const data = {
             file: file,
             processing_type: processingType
         };
-        pushNode(LoadingModal);
+        
+        pushNode(PDFProcessingModal);
         const [url, body, headerConfig] = setRequestData('pdf', flowId, data);
+        
+        console.log('📡 Making API Request');
+        console.log('   URL:', createApiUrl(url));
+        console.log('   Body:', body);
+        console.log('   Headers:', headerConfig);
+        
+        // Show processing message
+        console.log('⏳ Processing PDF... This may take 1-3 minutes depending on file size and complexity.');
+        
+        const startTime = Date.now();
+        
         axios
             .post(createApiUrl(url), body, {
                 headers: {
                     'Content-Type': headerConfig
+                },
+                timeout: 300000, // 5 minutes timeout
+                onUploadProgress: (progressEvent) => {
+                    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                    console.log(`📤 Upload progress: ${percentCompleted}%`);
                 }
             })
-            .then((res) => setupNodes(res.data))
-            .catch((err) => manageErrors(err));
+            .then((res) => {
+                const processingTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                console.log('✅ PDF Upload Success:', res.data);
+                console.log(`⏱️ Total processing time: ${processingTime} seconds`);
+                setupNodes(res.data);
+            })
+            .catch((err) => {
+                const processingTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                console.error('❌ PDF Upload Error:', err);
+                console.error(`⏱️ Failed after: ${processingTime} seconds`);
+                console.error('   Status:', err.response?.status);
+                console.error('   Data:', err.response?.data);
+                
+                // Provide more specific error messages
+                if (err.code === 'ECONNABORTED') {
+                    console.error('⏰ Request timed out - PDF processing took too long');
+                    setStatus(408);
+                    setMsg('PDF processing timed out. Please try with a smaller file or different processing type.');
+                } else if (err.response?.status === 500) {
+                    console.error('🔧 Server error during PDF processing');
+                    setStatus(500);
+                    setMsg('Server error during PDF processing. Please try again or contact support.');
+                } else if (err.response?.status === 400) {
+                    console.error('📄 Invalid PDF file or processing parameters');
+                    setStatus(400);
+                    setMsg('Invalid PDF file or processing parameters. Please check your file and try again.');
+                } else {
+                    manageErrors(err);
+                }
+                
+                popNode();
+                pushNode(ErrorModal);
+            });
     };
     
     const setupNodes = (data) => {
@@ -216,15 +272,32 @@ const PDFModal = () => {
                 />
             </div>
             {/* <InputBar data={{ type: "number", label: "Enter Column Row", placeholder: "eg: 1", setTableName: setHeaderRow }} /> */}
-            <select
-                value={processingType}
-                onChange={handleChange}
-            >
-                <option value="">Select...</option>
-                <option value="gpt">AWS Bedrock (Claude Sonnet 3.5)</option>
-                <option value="aws">AWS Textract</option>
-                <option value="custom">Custom RAG</option>
-            </select>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <select
+                    value={processingType}
+                    onChange={handleChange}
+                >
+                    <option value="">Select Processing Type...</option>
+                    <option value="gpt">AWS Bedrock (Claude Sonnet 3.5) - Recommended</option>
+                    <option value="aws">AWS Textract - Fast OCR</option>
+                    <option value="custom">Custom RAG - Advanced Analysis</option>
+                </select>
+                
+                {processingType && (
+                    <div style={{ 
+                        fontSize: '0.8rem', 
+                        color: 'var(--font-color)', 
+                        opacity: '0.7',
+                        padding: '0.5rem',
+                        backgroundColor: 'var(--input-bar-color)',
+                        borderRadius: '0.25rem'
+                    }}>
+                        {processingType === 'gpt' && '🤖 AI-powered analysis with Claude Sonnet 3.5. Best for comprehensive understanding and summaries.'}
+                        {processingType === 'aws' && '⚡ Fast OCR text extraction using AWS Textract. Good for simple text extraction.'}
+                        {processingType === 'custom' && '🔬 Advanced RAG processing with semantic chunking. Best for detailed analysis and Q&A.'}
+                    </div>
+                )}
+            </div>
             <div className="buttons">
                 <button
                     id="cancel"

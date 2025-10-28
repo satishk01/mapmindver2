@@ -1,24 +1,17 @@
-import PDFSvg from '../assets/pdf.svg';
 import CROSSSvg from '../assets/cross.svg';
-import RIGHTArrow from '../assets/right.svg';
-import { useState } from 'react';
-import InputBar from '../helpful-components/InputBar';
-import { nanoid } from 'nanoid';
 import useStore from '../stores/store';
 import { useShallow } from 'zustand/shallow';
 import modalStore from '../stores/modalStore';
 import axios from 'axios';
 import { createApiUrl } from '../config/api.js';
-import LoadingModal from './LoadingModal';
-import setRequestData from '../config/setRequestData';
 import flowStore from '../stores/flowStore';
-import DataSourceSet from '../nodes/DataSourceSet';
-import DataSourceSelect from '../global-components/DataSourceSelect';
 import ErrorModal from './ErrorModal';
 import errorStore from '../stores/errorStore';
-import { API_BASE_URL } from '../config/api';
 
 const FlowModal = ({isDrawer, setIsDrawer, isViewModal, setIsViewFlowModal}) => {
+    console.log('🎯 FlowModal rendered');
+    console.log('   isDrawer:', isDrawer);
+    console.log('   isViewModal:', isViewModal);
    const selector = (state) => ({
         trigger: state.trigger,
         setTrigger: state.setTrigger,
@@ -33,22 +26,18 @@ const FlowModal = ({isDrawer, setIsDrawer, isViewModal, setIsViewFlowModal}) => 
     const {
         trigger,
         setTrigger,
-        nodes,
         setNodes,
-        edges,
         setEdges,
-        viewport,
         setViewPort
     } = useStore(useShallow(selector));
     const setFlow = flowStore((s) => s.setFlow);
-    const flow = flowStore((s) => s.flow);
     const setFlowName = flowStore((s) => s.setFlowName);
-    const flow_name = flowStore((s) => s.flow_name);
     const setFlowType = flowStore((s) => s.setFlowType)
     const popNode = modalStore((s) => s.popNode);
     const pushNode = modalStore((s) => s.pushNode);
 
     const createNewFlow = () => {
+        console.log('📝 Creating Manual Flow');
         setIsDrawer(false)
         setIsViewFlowModal(false)
         const data = {
@@ -57,17 +46,26 @@ const FlowModal = ({isDrawer, setIsDrawer, isViewModal, setIsViewFlowModal}) => 
             flow_json: '',
             flow_type: 'manual'
         };
+        
+        console.log('📡 Sending flow creation request:', data);
         axios
             .post(createApiUrl("create-flow"), data, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
             })
-            .then((res) => setupNewFlow(res))
-            .catch((err) => manageErrors(err));
+            .then((res) => {
+                console.log('✅ Flow creation success:', res.data);
+                setupNewFlow(res);
+            })
+            .catch((err) => {
+                console.error('❌ Flow creation error:', err);
+                manageErrors(err);
+            });
     };
 
     const createAutomaticFlow = () => {
+        console.log('🤖 Creating Automatic Flow');
         setIsDrawer(false)
         setIsViewFlowModal(false)
         const data = {
@@ -76,14 +74,22 @@ const FlowModal = ({isDrawer, setIsDrawer, isViewModal, setIsViewFlowModal}) => 
             flow_json: '',
             flow_type: 'automatic'
         };
+        
+        console.log('📡 Sending automatic flow creation request:', data);
         axios
             .post(createApiUrl("create-flow"), data, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
             })
-            .then((res) => setupNewFlow(res))
-            .catch((err) => manageErrors(err));
+            .then((res) => {
+                console.log('✅ Automatic flow creation success:', res.data);
+                setupNewFlow(res);
+            })
+            .catch((err) => {
+                console.error('❌ Automatic flow creation error:', err);
+                manageErrors(err);
+            });
     };
 
 
@@ -105,7 +111,7 @@ const FlowModal = ({isDrawer, setIsDrawer, isViewModal, setIsViewFlowModal}) => 
         setStatus: state.setStatus,
         setMsg: state.setMsg
     });
-    const { status, message, setStatus, setMsg } = errorStore(
+    const { setStatus, setMsg } = errorStore(
         useShallow(selector2)
     );
 
@@ -128,22 +134,21 @@ const FlowModal = ({isDrawer, setIsDrawer, isViewModal, setIsViewFlowModal}) => 
                     <img
                         src={CROSSSvg}
                         alt="Cross Svg"
-                        onClick={(e) => setIsViewFlowModal(false)}
+                        onClick={() => setIsViewFlowModal(false)}
                     />
                 </div>
                 <div className="buttons">
                     <button
                         id="cancel"
-                        onClick={(e) => createAutomaticFlow(e)}
+                        onClick={() => createAutomaticFlow()}
                     >
                         Automatic
                     </button>
-                    {/* <button id="add" onClick={(e) => addDataSource(e)}>Add</button> */}
 
                     <button
                         id="add"
                         style={{ opacity: '100%' }}
-                        onClick={(e) => createNewFlow(e)}
+                        onClick={() => createNewFlow()}
                     >
                         Manual
                     </button>
